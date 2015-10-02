@@ -19,6 +19,8 @@ from collections import Counter
 from keras.layers.recurrent import LSTM
 import codecs
 import numpy as np
+import os
+import json
 import random
 import sys
 
@@ -48,6 +50,15 @@ def text_crop_at_percentile(text, perc=75):
 
 
 def load_data():
+    # load data from disk if available
+    if os.path.isfile('models/v%02d_text.txt' % VERSION):
+        print('Load text data from disk...')
+        with codecs.open('models/v%02d_text.txt' % VERSION, 'r', 'utf-8') as f:
+            text = f.read()
+        indices_char = json.load(open('models/v%02d_indices_char.json' % VERSION, 'r'))
+        char_indices = {c: i for i, c in enumerate(indices_char)}
+        return text, char_indices, indices_char
+
     with codecs.open(FNAME, 'r', 'utf-8') as f:
         text = f.read().lower()
 
@@ -60,11 +71,23 @@ def load_data():
     indices_char = list(chars)
     char_indices = {c: i for i, c in enumerate(indices_char)}
 
+    # save to disk
+    with codecs.open('models/v%02d_text.txt' % VERSION, 'w', 'utf-8') as f:
+        f.write(text)
+    json.dump(indices_char, open('models/v%02d_indices_char.json' % VERSION, 'w'))
+
     return text, char_indices, indices_char
 
 def vectorize(text, char_indices):
     """cut the text in semi-redundant sequences of MAXLEN characters"""
     print('Vectorization...')
+    # load data from disk if available
+    if os.path.isfile('models/v%02d_data_X.npy' % VERSION):
+        print('Load train vectors from disk...')
+        X = np.load('models/v%02d_data_X.npy' % VERSION)
+        y = np.load('models/v%02d_data_y.npy' % VERSION)
+        return X, y
+
     step = 3
 
     sentences = []
@@ -80,6 +103,9 @@ def vectorize(text, char_indices):
         for t, char in enumerate(sentence):
             X[i, t, char_indices[char]] = 1
         y[i, char_indices[next_chars[i]]] = 1
+    # save to disk
+    np.save('models/v%02d_data_X' % VERSION, X)
+    np.save('models/v%02d_data_y' % VERSION, y)
     return X, y
 
 def build_model(indices_char):
@@ -94,6 +120,24 @@ def build_model(indices_char):
     model.add(Activation('softmax'))
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
     return model
+
+def model_save_path(iter):
+    return 'models/v%02d_model_iter_%02d.h5' % (VERSION, iter)
+
+def save_model(model, iter):
+    print('Storing model iteration #%d to disk...' % iter)
+    model.save_weights(model_save_path(iter), overwrite=True)
+
+def load_latest_model(model):
+    files = os.listdir('models')
+    path = None
+    for i in reversed(range(1, N_ITER)):
+        if ('v%02d_model_iter_%02d.h5' % (VERSION, i)) in os.listdir('models'):
+            print('Load model iteration #%d from disk and continue.' % i)
+            model.load_weights(model_save_path(i))
+            return i
+    print('Could not load a model from disk.')
+    return 0
 
 # helper function to sample an index from a probability array
 def sample_prob(a, temperature=1.0):
@@ -132,13 +176,15 @@ if __name__ == '__main__':
     text, char_indices, indices_char = load_data()
     X, y = vectorize(text, char_indices)
     model = build_model(indices_char)
+    loaded = load_latest_model(model)
 
     # train the model, output generated text after each iteration
-    for iteration in range(1, N_ITER):
+    for iteration in range(loaded + 1, N_ITER):
         print()
         print('-' * 50)
         print('Iteration', iteration)
         model.fit(X, y, batch_size=BATCH_SIZE, nb_epoch=1)
+        save_model(model, iteration)
 
         start_index = random.randint(0, len(text) - MAXLEN - 1)
         sample_from_model(text, start_index, char_indices, model, indices_char)
