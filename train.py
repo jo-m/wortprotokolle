@@ -19,6 +19,8 @@ from collections import Counter
 from keras.layers.recurrent import LSTM
 import codecs
 import numpy as np
+import random
+import sys
 
 N_ITER = 60
 MAXLEN = 20
@@ -93,6 +95,39 @@ def build_model(indices_char):
     model.compile(loss='categorical_crossentropy', optimizer='rmsprop')
     return model
 
+# helper function to sample an index from a probability array
+def sample_prob(a, temperature=1.0):
+    a = np.log(a)/temperature
+    a = np.exp(a)/np.sum(np.exp(a))
+    return np.argmax(np.random.multinomial(1, a, 1))
+
+def sample_from_model(text, start_index, char_indices, model, indices_char):
+    for diversity in [0.2, 0.5, 1.0, 1.2]:
+        print()
+        print('----- diversity:', diversity)
+
+        generated = ''
+        sentence = text[start_index:start_index + MAXLEN]
+        generated += sentence
+        print('----- Generating with seed: "' + sentence + '"')
+        sys.stdout.write(generated)
+
+        for iteration in range(400):
+            x = np.zeros((1, MAXLEN, len(indices_char)))
+            for t, char in enumerate(sentence):
+                x[0, t, char_indices[char]] = 1.
+
+            preds = model.predict(x, verbose=0)[0]
+            next_index = sample_prob(preds, diversity)
+            next_char = indices_char[next_index]
+
+            generated += next_char
+            sentence = sentence[1:] + next_char
+
+            sys.stdout.write(next_char)
+            sys.stdout.flush()
+        print()
+
 if __name__ == '__main__':
     text, char_indices, indices_char = load_data()
     X, y = vectorize(text, char_indices)
@@ -104,3 +139,6 @@ if __name__ == '__main__':
         print('-' * 50)
         print('Iteration', iteration)
         model.fit(X, y, batch_size=BATCH_SIZE, nb_epoch=1)
+
+        start_index = random.randint(0, len(text) - MAXLEN - 1)
+        sample_from_model(text, start_index, char_indices, model, indices_char)
