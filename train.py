@@ -28,11 +28,30 @@ FNAME = 'scrape/4920.txt'
 
 VERSION = 1
 
+def text_crop_at_percentile(text, perc=75):
+    """
+    Remove all chars from a text which occur within a percentile of less
+    than ``perc``.
+    """
+    c = Counter(text)
+    importance = sorted([(a,b) for a, b in c.items()], key=lambda x: x[1])
+    i = int((1-(perc/100.)) * len(importance))
+    delchars = [x for x, _ in importance[:i]]
+    keepchars = [x for x, _ in importance[i:]]
+    print('  Keep chars: "%s"\n  Delete chars: ""%s"' % (
+        ''.join(reversed(keepchars)).replace('\n', ''),
+        ''.join(delchars)
+    ))
+    return text.translate({ord(x): None for x in delchars})
+
+
 def load_data():
     with codecs.open(FNAME, 'r', 'utf-8') as f:
         text = f.read().lower()
 
     print('corpus length:', len(text))
+    text = text_crop_at_percentile(text, 50)
+    print('Reduced corpus length:', len(text))
 
     chars = set(text)
     print('total chars:', len(chars))
