@@ -24,11 +24,11 @@ import json
 import random
 import sys
 
-N_ITER = 60
+N_ITER = 100
 MAXLEN = 20
 BATCH_SIZE = 128
 
-FNAME = 'scrape/4920.txt'
+FNAME = 'scrape/4919.txt'
 
 VERSION = 1
 
@@ -63,7 +63,7 @@ def load_data():
         text = f.read().lower()
 
     print('corpus length:', len(text))
-    text = text_crop_at_percentile(text, 50)
+    text = text_crop_at_percentile(text, 65)
     print('Reduced corpus length:', len(text))
 
     chars = set(text)
