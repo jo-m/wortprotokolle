@@ -5,11 +5,13 @@ scrape() {
   root='http://www.parlament.ch/ab/static/ab/html/d/default.htm'
   wget --continue \
        --recursive \
-       --level=1 \
+       --level=8 \
+       --convert-links \
+       --accept-regex="^http://www\.parlament\.ch/ab/(toc|frameset|data)/d/n/$session.*\$" \
        $root 2>&1
 }
 
-scrape $1
+scrape 4920
 
 # URLs
 # http://www.parlament.ch/ab/toc/d/n/4920/d_n_4920.htm
