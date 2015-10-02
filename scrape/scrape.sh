@@ -11,7 +11,18 @@ scrape() {
        $root 2>&1
 }
 
-scrape 4920
+get_text() {
+  session=$1
+  echo > $session.txt
+  find "www.parlament.ch/ab/data/d/n/$session/" -name '*.htm' | sort | while read f; do
+    node_modules/html-to-text/bin/cli.js < $f | \
+      sed 's/\[.*\]//' | \
+      egrep -v '^ Home' >> $session.txt
+  done
+}
+
+scrape $1
+get_text $1
 
 # URLs
 # http://www.parlament.ch/ab/toc/d/n/4920/d_n_4920.htm
