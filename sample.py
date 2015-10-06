@@ -20,14 +20,12 @@ from train import (
     MAXLEN
 )
 
-DIVERSITY = 1.0
+DIVERSITY = 0.75
 
 def sample_from_model(text, start_index, char_indices, model, indices_char):
-    generated = ''
     sentence = text[start_index:start_index + MAXLEN]
-    generated += sentence
-    print('----- Generating with seed: "' + sentence + '"')
-    sys.stdout.write(generated)
+    for c in sentence:
+        yield c
 
     while True:
         x = np.zeros((1, MAXLEN, len(indices_char)))
@@ -37,18 +35,29 @@ def sample_from_model(text, start_index, char_indices, model, indices_char):
         preds = model.predict(x, verbose=0)[0]
         next_index = sample_prob(preds, DIVERSITY)
         next_char = indices_char[next_index]
-
-        generated += next_char
         sentence = sentence[1:] + next_char
+        yield next_char
 
-        sys.stdout.write(next_char)
-        sys.stdout.flush()
-    print()
 
-if __name__ == '__main__':
+def yield_chars():
     text, char_indices, indices_char = load_data()
     model = build_model(indices_char)
     load_latest_model(model)
 
     start_index = random.randint(0, len(text) - MAXLEN - 1)
-    sample_from_model(text, start_index, char_indices, model, indices_char)
+    gen = sample_from_model(text, start_index, char_indices, model, indices_char)
+
+    next_letter_upper = False
+    for c in gen:
+        if next_letter_upper and c.upper() != c:
+            yield c.upper()
+            next_letter_upper = False
+        else:
+            yield c
+        if c == '.':
+            next_letter_upper = True
+
+if __name__ == '__main__':
+    for c in yield_chars():
+        sys.stdout.write(c)
+        sys.stdout.flush()
